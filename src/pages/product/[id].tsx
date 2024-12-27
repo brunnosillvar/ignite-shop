@@ -9,6 +9,8 @@ import { stripe } from '@/src/lib/stripe';
 import Stripe from 'stripe';
 import Image from 'next/image';
 import { useRouter } from 'next/router';
+import axios from 'axios';
+import { useState } from 'react';
 
 interface ProductProps {
   product: {
@@ -16,15 +18,43 @@ interface ProductProps {
     name: string;
     imageUrl: string;
     price: string;
+    defaultPriceId: string;
     description: string;
   };
 }
 
 export default function Product({ product }: ProductProps) {
-  const { isFallback } = useRouter();
+  const [isCreatingCheckouSession, setIsCreatingCheckoutSession] =
+    useState<boolean>(false);
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { isFallback, push: routerPush } = useRouter();
 
   if (isFallback) {
     return <p>Loading...</p>;
+  }
+
+  async function handleBuyProduct() {
+    try {
+      setIsCreatingCheckoutSession(true);
+      const response = await axios.post('/api/checkout', {
+        priceId: product.defaultPriceId,
+      });
+
+      const { checkoutUrl } = response.data;
+
+      // Direcionar para uma URL externa
+      window.location.href = checkoutUrl;
+
+      // Direcionar para um rota interna
+      // routerPush('/success');
+    } catch (err) {
+      // Conectar com uma ferramenta de observabilidade (Datalog, Sentry, etc)
+      setIsCreatingCheckoutSession(false);
+
+      alert('Erro ao realizar a compra, tente novamente mais tarde');
+      console.error(err);
+    }
   }
 
   return (
@@ -38,7 +68,9 @@ export default function Product({ product }: ProductProps) {
 
         <p>{product.description}</p>
 
-        <button>Comprar agora</button>
+        <button disabled={isCreatingCheckouSession} onClick={handleBuyProduct}>
+          Comprar agora
+        </button>
       </ProductDetails>
     </ProductContainer>
   );
@@ -82,6 +114,7 @@ export const getStaticProps: GetStaticProps<any, { id: string }> = async ({
             style: 'currency',
             currency: 'BRL',
           }).format(price.unit_amount / 100),
+        defaultPriceId: price.id,
         description: product.description,
       },
     },
